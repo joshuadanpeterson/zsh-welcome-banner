@@ -64,7 +64,7 @@ Contributions, issues, and feature requests are welcome! Feel free to check [iss
 
 ## License
 
-Specify your license here.
+This project is licensed under the MIT License - see the [[LICENSE]] file for details.
 
 ---
 
