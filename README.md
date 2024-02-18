@@ -46,7 +46,7 @@ plugins=(... welcome_banner)
 
 ```zsh
 source ~/.zshrc
-`````````````````````
+```
 
 ## Customization
 
@@ -64,7 +64,7 @@ Contributions, issues, and feature requests are welcome! Feel free to check [iss
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE] file for details.
+This project is licensed under the MIT License - see the [LICENSE](https://github.com/joshuadanpeterson/zsh-welcome-banner/blob/main/LICENSE) file for details.
 
 ---
 
