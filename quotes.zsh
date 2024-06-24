@@ -21,5 +21,7 @@ quotes=(
   "If you know the enemy and know yourself you need not fear the results of a hundred battles. - Sun Tzu"
   "We all know that Art is not truth. Art is a lie that makes us realize truth at least the truth that is given us to understand. The artist must know the manner whereby to convince others of the truthfulness of his lies. - Pablo Picasso"
   "From one thing, know ten thousand things. To know ten thousand things, know one well. - Miyamoto Musashi"
+  "Any sufficiently advanced technology is equivalent to magic. - Arthur C. Clarke"
+  "I fear not the man who has practiced 10,000 kicks once, but I fear the man who has practiced one kick 10,000 times. - Bruce Lee"
 )
 
