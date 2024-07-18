@@ -1,6 +1,10 @@
 # Welcome Banner Plugin for Zsh
 
 The Welcome Banner Plugin enhances your Zsh terminal experience with a vibrant, colorful welcome message and random inspirational quotes each time you start a new session. This plugin is for Mac and Linux and relies on `lolcat` for rainbow coloring and `figlet` for ASCII art fonts, offering a visually appealing and motivational start to your terminal sessions.
+<br></br>
+<div align=center>
+  <img src="./banner-img.png" alt="Welcome Banner" title="Welcome Banner">
+</div>
 
 ## Dependencies
 
