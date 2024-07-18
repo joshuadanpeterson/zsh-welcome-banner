@@ -1,0 +1,227 @@
+name: Create Release
+on:
+  push:
+    branches:
+      - main
+      - dev
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch all history for all tags and branches
+
+      - name: Set up Zsh
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zsh
+
+      - name: Verify Zsh installation
+        run: zsh --version
+
+      - name: Run Zsh script tests
+        run: |
+          if [ -f "welcome-banner.plugin.zsh" ]; then
+            zsh welcome-banner.plugin.zsh
+          else
+            echo "welcome-banner.plugin.zsh not found."
+          fi
+
+      - name: Determine next version
+        id: determine_version
+        run: |
+          git fetch --tags
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo 'v0.0.0')
+          echo "LATEST_TAG=${LATEST_TAG}" >> $GITHUB_OUTPUT
+
+          if [ "$LATEST_TAG" = "v0.0.0" ]; then
+            # No existing tags, set initial version
+            NEW_VERSION="v0.0.1"
+            echo "NEW_VERSION=${NEW_VERSION}" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          git log ${LATEST_TAG}..HEAD --pretty=format:%s > commits.txt
+          if grep -q '^BREAKING CHANGE:' commits.txt || grep -q '^[a-zA-Z]\+!:' commits.txt; then
+            BUMP="major"
+          elif grep -q '^feat:' commits.txt; then
+            BUMP="minor"
+          else
+            BUMP="patch"
+          fi
+          echo "BUMP=${BUMP}" >> $GITHUB_OUTPUT
+
+          LATEST_VERSION=${LATEST_TAG#v}
+          IFS='.' read -ra VERSION_PARTS <<< "$LATEST_VERSION"
+          MAJOR=${VERSION_PARTS[0]:-0}
+          MINOR=${VERSION_PARTS[1]:-0}
+          PATCH=${VERSION_PARTS[2]:-0}
+
+          case $BUMP in
+            major)
+              NEW_VERSION="$((MAJOR + 1)).0.0"
+              ;;
+            minor)
+              NEW_VERSION="${MAJOR}.$((MINOR + 1)).0"
+              ;;
+            patch)
+              NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+              ;;
+          esac
+          echo "NEW_VERSION=v${NEW_VERSION}" >> $GITHUB_OUTPUT
+
+          # Check if the calculated version already exists
+          if git rev-parse v$NEW_VERSION >/dev/null 2>&1; then
+            echo "Version v$NEW_VERSION already exists. Incrementing patch version."
+            PATCH=$((PATCH + 1))
+            NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+            echo "NEW_VERSION=v${NEW_VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Generate Changelog
+        id: get_changelog
+        run: |
+          LATEST_TAG=${{ steps.determine_version.outputs.LATEST_TAG }}
+          CHANGELOG=$(git log ${LATEST_TAG}..HEAD --pretty=format:"- %s")
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Update CHANGELOG.md
+        run: |
+          NEW_VERSION='${{ steps.determine_version.outputs.NEW_VERSION }}'
+          CHANGELOG='${{ steps.get_changelog.outputs.CHANGELOG }}'
+          CURRENT_DATE=$(TZ='America/Denver' date +%Y-%m-%d)
+          REPO_URL="https://github.com/joshuadanpeterson/welcome-banner"
+
+          format_entry() {
+            local version=$1
+            local date=$2
+            local content=$3
+            local prev_version=$4
+            echo "## [$version]($REPO_URL/tree/$version) ($date)"
+            echo "$content"
+            echo
+            echo "[Full Changelog]($REPO_URL/compare/$prev_version...$version)"
+            echo
+          }
+
+          remove_duplicates() {
+            echo "$1" | awk '!seen[$0]++'
+          }
+
+          echo "# Changelog" > temp_changelog.md
+          echo >> temp_changelog.md
+
+          # Add new version
+          NEW_CHANGELOG=$(remove_duplicates "$CHANGELOG")
+          format_entry "$NEW_VERSION" "$CURRENT_DATE" "$NEW_CHANGELOG" "${{ steps.determine_version.outputs.LATEST_TAG }}" >> temp_changelog.md
+
+          prev_version="$NEW_VERSION"
+          declare -A processed_versions
+
+          while IFS= read -r line; do
+            if [[ $line =~ ^##[[:space:]]+(\[v[0-9]+\.[0-9]+\.[0-9]+\])(.*)$ ]]; then
+              version="${BASH_REMATCH[1]}"
+              version="${version:1:-1}"
+              if [[ -n "${processed_versions[$version]}" ]] || [[ "$version" == "$NEW_VERSION" ]]; then
+                continue
+              fi
+              processed_versions[$version]=1
+
+              date_part="${BASH_REMATCH[2]}"
+              date=$(echo "$date_part" | grep -oP '\(\K[0-9]{4}-[0-9]{2}-[0-9]{2}(?=\))' || echo "Unknown Date")
+              
+              if [ "$date" != "Unknown Date" ]; then
+                date=$(TZ='America/Denver' date -d "$date" +%Y-%m-%d)
+              fi
+              
+              content=$(sed -n "/^## \[$version\]/,/^## \[v[0-9]/{ /^## \[v[0-9]/d; p; }" CHANGELOG.md)
+              content=$(echo "$content" | sed '/^\[Full Changelog\]/d' | sed '/^$/N;/^\n$/D')
+              content=$(remove_duplicates "$content")
+              
+              format_entry "$version" "$date" "$content" "$prev_version" >> temp_changelog.md
+              
+              prev_version="$version"
+            fi
+          done < CHANGELOG.md
+
+          mv temp_changelog.md CHANGELOG.md
+
+          if ! grep -q "^# Changelog" CHANGELOG.md || ! grep -q "^## \[v[0-9]\+\.[0-9]\+\.[0-9]\+\]" CHANGELOG.md; then
+            echo "Error: CHANGELOG.md formatting verification failed"
+            exit 1
+          fi
+
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add CHANGELOG.md
+          git commit -m "docs: update CHANGELOG.md for ${NEW_VERSION} and remove duplicate entries"
+          git push
+
+      - name: Check if release exists
+        id: check_release
+        run: |
+          if git ls-remote --exit-code --tags origin refs/tags/${{ steps.determine_version.outputs.NEW_VERSION }} >/dev/null 2>&1; then
+            echo "RELEASE_EXISTS=true" >> $GITHUB_OUTPUT
+          else
+            echo "RELEASE_EXISTS=false" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        if: steps.check_release.outputs.RELEASE_EXISTS == 'false'
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.determine_version.outputs.NEW_VERSION }}
+          release_name: Release ${{ steps.determine_version.outputs.NEW_VERSION }}
+          body: |
+            ## Changes in this Release
+
+            ${{ steps.get_changelog.outputs.CHANGELOG }}
+
+            For full changelog, see [CHANGELOG.md](https://github.com/joshuadanpeterson/welcome-banner/blob/main/CHANGELOG.md)
+
+            ## Core Features
+            - Displays a welcome banner with a random quote.
+            - Configurable through the `quotes.zsh` file.
+
+            For more details, please check the [README](https://github.com/joshuadanpeterson/welcome-banner/blob/main/README.md).
+          draft: false
+          prerelease: false
+
+      - name: Update existing release
+        if: steps.check_release.outputs.RELEASE_EXISTS == 'true'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const fs = require('fs');
+            const { NEW_VERSION } = process.env;
+            const changelog = fs.readFileSync('CHANGELOG.md', 'utf8');
+
+            const releases = await github.rest.repos.listReleases({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+
+            const existingRelease = releases.data.find(release => release.tag_name === NEW_VERSION);
+
+            if (existingRelease) {
+              await github.rest.repos.updateRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: existingRelease.id,
+                body: `## Changes in this Release\n\n${changelog}\n\nFor full changelog, see [CHANGELOG.md](https://github.com/joshuadanpeterson/welcome-banner/blob/main/CHANGELOG.md)\n\n## Core Features\n- Displays a welcome banner with a random quote.\n- Configurable through the \`quotes.zsh\` file.\n\nFor more details, please check the [README](https://github.com/joshuadanpeterson/welcome-banner/blob/main/README.md).`,
+              });
+              console.log(`Updated existing release ${NEW_VERSION}`);
+            } else {
+              console.log(`Release ${NEW_VERSION} not found`);
+            }
+        env:
+          NEW_VERSION: ${{ steps.determine_version.outputs.NEW_VERSION }}
