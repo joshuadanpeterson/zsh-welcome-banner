@@ -1,6 +1,9 @@
 # Changelog
 
-## [v0.0.1](https://github.com/joshuadanpeterson/welcome-banner/tree/v0.0.1) (2024-07-18)
+## [v0.0.1](https://github.com/joshuadanpeterson/welcome-banner/tree/v0.0.1) (2024-07-19)
+- Merge branch main of https://github.com/joshuadanpeterson/zsh-welcome-banner
+- fix: Correct syntax for checking if release exists in workflow
+- docs: update CHANGELOG.md for v0.0.1 and remove duplicate entries
 - feat(CHANGELOG): Add CHANGELOG
 - fix: Handle initial versioning when no existing tags are present
 - feat(banner-img): Update banner image
