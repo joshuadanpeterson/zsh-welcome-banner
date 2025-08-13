@@ -37,7 +37,7 @@ git clone https://github.com/xero/figlet-fonts.git ~/.local/share/fonts/figlet-f
 1. **Clone the Plugin** into your custom plugins directory of Oh My Zsh:
 
 ```zsh
-git clone https://github.com/yourusername/welcome-banner.git ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/welcome-banner
+git clone https://github.com/joshuadanpeterson/zsh-welcome-banner.git ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/welcome-banner.git ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/welcome-banner
 ```
 
 2. **Activate the Plugin** by adding `welcome_banner` to the plugins array in your `.zshrc` file:
